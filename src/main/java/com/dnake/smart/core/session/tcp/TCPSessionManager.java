@@ -2,6 +2,8 @@ package com.dnake.smart.core.session.tcp;
 
 import com.dnake.smart.core.config.Config;
 import com.dnake.smart.core.dict.Device;
+import com.dnake.smart.core.log.Factory;
+import com.dnake.smart.core.log.Log;
 import io.netty.channel.Channel;
 import lombok.NonNull;
 
@@ -37,7 +39,11 @@ public final class TCPSessionManager {
 	 * 初始化连接
 	 */
 	public static void init(Channel channel) {
-		ACCEPT_MAP.put(TCPSessions.id(channel), TCPSessions.active(channel));
+		if (TCPSessions.create(channel)) {
+			ACCEPT_MAP.put(TCPSessions.id(channel), channel);
+		} else {
+			close(channel);
+		}
 	}
 
 	/**
@@ -55,12 +61,32 @@ public final class TCPSessionManager {
 	}
 
 	/**
-	 * 完成登录
-	 *
-	 * @return 分配端口{-1:失败,0:APP,50000+:网关}
+	 * (分配端口)完成登录并在相应队列中登记
 	 */
-	public static int login(Channel channel) {
+	public static int pass(Channel channel) {
+		if (ACCEPT_MAP.remove(TCPSessions.id(channel)) == null) {
+			//正常情况下此连接已被关闭
+			Log.logger(Factory.TCP_EVENT, "登录超时(未及时登录,会话已关闭)");
+			return -1;
+		}
+
 		int port = TCPSessions.allocate(channel);
+		switch (port) {
+			case -1:
+				break;
+			case 0:
+				APP_MAP.put(TCPSessions.id(channel), channel);
+				break;
+			default:
+				String sn = TCPSessions.sn(channel);
+				Channel original = GATEWAY_MAP.remove(sn);
+				if (original != null) {
+					Log.logger(Factory.TCP_EVENT, "关闭[" + sn + "]已有的连接");
+					TCPSessions.close(original);
+				}
+				GATEWAY_MAP.put(sn, channel);
+		}
+
 		return TCPSessions.pass(channel, port) ? port : -1;
 	}
 
@@ -71,7 +97,48 @@ public final class TCPSessionManager {
 	/**
 	 * 关闭连接
 	 */
-	public static void close(Channel channel) {
+	public static boolean close(Channel channel) {
+		if (channel == null || !channel.isOpen()) {
+			return true;
+		}
+		Log.logger(Factory.TCP_EVENT, "关闭[" + channel.remoteAddress() + "]连接");
+		//先直接关闭channel
 		TCPSessions.close(channel);
+		String id = TCPSessions.id(channel);
+
+		//在未登录队列中查找
+		if (ACCEPT_MAP.remove(id, channel)) {
+			return true;
+		}
+
+		Device device = TCPSessions.device(channel);
+
+		if (device == null) {
+			//尚未登录,应在此前已删除
+			Log.logger(Factory.TCP_ERROR, channel.remoteAddress() + "该连接超时未登录已被关闭");
+			return false;
+		}
+
+		//已进入登录环节
+		switch (device) {
+			case APP:
+				if (APP_MAP.remove(id, channel)) {
+					return true;
+				} else {
+					Log.logger(Factory.TCP_ERROR, channel.remoteAddress() + "客户端关闭出错,在app队列中查找不到该连接(可能在线时长已到被移除)");
+					return false;
+				}
+			case GATEWAY:
+				String sn = TCPSessions.sn(channel);
+				if (GATEWAY_MAP.remove(sn, channel)) {
+					return true;
+				} else {
+					Log.logger(Factory.TCP_ERROR, channel.remoteAddress() + " 网关关闭出错,在网关队列中查找不到该连接(可能在线时长已到被移除)");
+					return false;
+				}
+			default:
+				Log.logger(Factory.TCP_ERROR, "关闭出错,非法的登录数据");
+				return false;
+		}
 	}
 }

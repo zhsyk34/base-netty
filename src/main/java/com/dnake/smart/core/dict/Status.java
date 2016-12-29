@@ -10,20 +10,14 @@ import lombok.Getter;
 @Getter
 public enum Status {
 
-	ACTIVE("初始连接"),
-	REQUEST("连接请求"),
+	CREATED(0, "创建连接"),
+	REQUEST(1, "请求登录"),
+	VERIFIED(2, "登录验证"),
+	ALLOCATED(3, "等待资源(网关登录等待系统分配端口)"),
+	PASSED(4, "登录成功(分配端口)"),
+	CLOSED(5, "连接关闭");
 
-	/**
-	 * 中间态:验证后转为 PASSED
-	 */
-	VERIFY("连接验证"),
-	PASSED("通过验证"),
-
-	/**
-	 * 瞬时态:直接关闭并移除
-	 */
-	CLOSED("连接关闭");
-
+	private final int step;
 	private final String description;
 
 }

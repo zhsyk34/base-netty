@@ -96,7 +96,7 @@ final class TCPLoginHandler extends ChannelInboundHandlerAdapter {
 		}
 
 		//登录通过
-		int allocated = TCPSessionManager.login(channel);
+		int allocated = TCPSessionManager.pass(channel);
 
 		if (allocated == -1) {
 			response.put(Key.RESULT.getName(), Result.NO.getName());

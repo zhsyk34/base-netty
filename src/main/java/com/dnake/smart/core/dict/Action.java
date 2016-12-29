@@ -37,14 +37,9 @@ public enum Action {
 	/**
 	 * 4.本服务器主动推送至web服务器
 	 */
-	TCP_LOGIN_PUSH(4, "login", "网关tcp登录推送"),
+	TCP_LOGIN_PUSH(4, "pass", "网关tcp登录推送"),
 	TCP_LOGOUT_PUSH(4, "logout", "网关tcp离线推送"),
 	UDP_SESSION_PUSH(4, "udpPush", "udp会话信息推送");
-
-	private final int type;
-	@NonNull
-	private final String name;
-	private final String description;
 
 	private static final Map<String, Action> MAP = new HashMap<>();
 
@@ -53,6 +48,11 @@ public enum Action {
 			MAP.put(action.getName(), action);
 		}
 	}
+
+	private final int type;
+	@NonNull
+	private final String name;
+	private final String description;
 
 	public static Action from(String name) {
 		return MAP.get(name);

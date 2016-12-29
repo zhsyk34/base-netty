@@ -7,6 +7,7 @@ import com.dnake.smart.core.dict.Status;
 import com.dnake.smart.core.kit.CodecKit;
 import com.dnake.smart.core.kit.ConvertKit;
 import com.dnake.smart.core.kit.RandomKit;
+import com.dnake.smart.core.kit.ValidateKit;
 import io.netty.channel.Channel;
 import io.netty.util.AttributeKey;
 import lombok.NonNull;
@@ -34,37 +35,49 @@ final class TCPSessions {
 	}
 
 	/**
+	 * 获取连接身份
+	 */
+	static String sn(@NonNull Channel channel) {
+		return SessionKit.sn(channel);
+	}
+
+	/**
+	 * 获取设备类型
+	 */
+	static Device device(@NonNull Channel channel) {
+		return SessionKit.type(channel);
+	}
+
+	/**
 	 * 初始化连接
 	 */
-	static Channel active(@NonNull Channel channel) {
-		SessionKit.status(SessionKit.create(channel), Status.ACTIVE);
-		return channel;
+	static boolean create(@NonNull Channel channel) {
+		SessionKit.create(channel);
+		SessionKit.status(channel, Status.CREATED);
+		return SessionKit.check(channel);
 	}
 
 	/**
 	 * 登录请求(准备登录)
 	 */
 	static String request(@NonNull Channel channel, @NonNull Device device, @NonNull String sn, Integer port) {
-		if (SessionKit.status(channel) != Status.ACTIVE) {
+		if (SessionKit.status(channel) != Status.CREATED) {
 			return null;
-		}
-
-		if (device == Device.GATEWAY) {
-			if (SessionKit.check(port)) {
-				SessionKit.port(channel, port);
-			} else {
-				return null;
-			}
 		}
 
 		SessionKit.type(channel, device);
 		SessionKit.sn(channel, sn);
-		SessionKit.status(channel, Status.REQUEST);
+		SessionKit.port(channel, port);
 
 		int group = RandomKit.randomInteger(0, 49);
 		int offset = RandomKit.randomInteger(0, 9);
-
 		SessionKit.code(channel, CodecKit.loginVerify(group, offset));
+
+		SessionKit.status(channel, Status.REQUEST);
+
+		if (!SessionKit.check(channel)) {
+			return null;
+		}
 
 		return CodecKit.loginKey(group, offset);
 	}
@@ -76,44 +89,48 @@ final class TCPSessions {
 		if (SessionKit.status(channel) != Status.REQUEST) {
 			return false;
 		}
-		SessionKit.status(channel, Status.VERIFY);
-		return code.equals(SessionKit.code(channel));
+		SessionKit.status(channel, Status.VERIFIED);
+
+		return SessionKit.check(channel) && code.equals(SessionKit.code(channel));
+
 	}
 
 	/**
 	 * 网关在通过验证后的进一步处理
-	 * 等待UDP端口分配
+	 * 等待UDP端口分配:
+	 * {-1:失败,0:APP,50000+:网关}
 	 */
 	static int allocate(@NonNull Channel channel) {
-		if (SessionKit.status(channel) != Status.VERIFY) {
+		if (SessionKit.status(channel) != Status.VERIFIED) {
 			return -1;
 		}
-		if (SessionKit.type(channel) != Device.GATEWAY) {
-			return 0;
+		Integer allocated;
+		switch (SessionKit.type(channel)) {
+			case APP:
+				allocated = 0;
+				break;
+			case GATEWAY:
+				allocated = PortAllocator.allocate(SessionKit.sn(channel), ip(channel), SessionKit.port(channel));
+				break;
+			default:
+				allocated = -1;
 		}
-		int allocated = PortAllocator.allocate(SessionKit.sn(channel), ip(channel), SessionKit.port(channel));
 		SessionKit.port(channel, allocated);
-		return allocated;
+
+		SessionKit.status(channel, Status.ALLOCATED);
+		return SessionKit.check(channel) ? allocated : -1;
 	}
 
 	/**
 	 * 完成登录
 	 */
 	static boolean pass(@NonNull Channel channel, Integer port) {
-		if (SessionKit.status(channel) != Status.VERIFY) {
+		if (SessionKit.status(channel) != Status.ALLOCATED) {
 			return false;
 		}
-
-		Device device = SessionKit.type(channel);
-		if (device == Device.GATEWAY) {
-			if (SessionKit.check(port)) {
-				SessionKit.port(channel, port);
-			} else {
-				return false;
-			}
-		}
+		SessionKit.port(channel, port);
 		SessionKit.status(channel, Status.PASSED);
-		return true;
+		return SessionKit.check(channel);
 	}
 
 	/**
@@ -148,7 +165,7 @@ final class TCPSessions {
 	 */
 	private static final class SessionKit {
 
-		//validate for create time
+		//validate for init time
 		private static final long MIN_MILLIS = ConvertKit.from(ConvertKit.from(Config.SERVER_START_TIME));
 
 		/**
@@ -166,14 +183,14 @@ final class TCPSessions {
 		//连接状态
 		private static final AttributeKey<Status> STATUS = AttributeKey.newInstance(Status.class.getSimpleName());
 		//连接创建时间
-		private static final AttributeKey<Long> CREATED = AttributeKey.newInstance(Status.ACTIVE.name());
+		private static final AttributeKey<Long> ACTIVE = AttributeKey.newInstance(Status.CREATED.name());
 
 		/**
 		 * 1.连接时间
 		 */
 		private static Channel create(@NonNull Channel channel, long millis) {
 			if (millis >= MIN_MILLIS) {
-				channel.attr(CREATED).set(millis);
+				channel.attr(ACTIVE).set(millis);
 			}
 			return channel;
 		}
@@ -183,7 +200,7 @@ final class TCPSessions {
 		}
 
 		static long created(@NonNull Channel channel) {
-			Long created = channel.attr(CREATED).get();
+			Long created = channel.attr(ACTIVE).get();
 			return created == null || created < MIN_MILLIS ? -1 : created;
 		}
 
@@ -214,8 +231,8 @@ final class TCPSessions {
 		/**
 		 * 3-1.缓存网关申请的UDP通讯端口号
 		 */
-		static Channel port(@NonNull Channel channel, int port) {
-			if (port >= Config.TCP_ALLOT_MIN_UDP_PORT) {
+		static Channel port(@NonNull Channel channel, Integer port) {
+			if (SessionKit.validate(port)) {
 				channel.attr(PORT).set(port);
 			}
 			return channel;
@@ -223,7 +240,7 @@ final class TCPSessions {
 
 		static int port(@NonNull Channel channel) {
 			Integer port = channel.attr(PORT).get();
-			return port == null || port < Config.TCP_ALLOT_MIN_UDP_PORT ? -1 : port;
+			return validate(port) ? port : -1;
 		}
 
 		/**
@@ -250,7 +267,46 @@ final class TCPSessions {
 			return channel.attr(STATUS).get();
 		}
 
-		static boolean check(Integer port) {
+		/**
+		 * 各状态下缓存数据校验
+		 */
+		static boolean check(@NonNull Channel channel) {
+			Status status = status(channel);
+			if (status == null) {
+				return false;
+			}
+
+			long created = created(channel);
+			Device device = type(channel);
+			String sn = sn(channel);
+			String code = code(channel);
+			int port = port(channel);
+
+			switch (status) {
+				case CREATED:
+					return created >= MIN_MILLIS;
+				case REQUEST:
+				case VERIFIED:
+				case ALLOCATED:
+				case PASSED:
+					return device != null && ValidateKit.notEmpty(sn, code) && check(device, port);
+				default:
+					return true;
+			}
+		}
+
+		private static boolean check(@NonNull Device device, Integer port) {
+			switch (device) {
+				case APP:
+					return true;
+				case GATEWAY:
+					return validate(port);
+				default:
+					return true;
+			}
+		}
+
+		private static boolean validate(Integer port) {
 			return port != null && port >= Config.TCP_ALLOT_MIN_UDP_PORT;
 		}
 	}
