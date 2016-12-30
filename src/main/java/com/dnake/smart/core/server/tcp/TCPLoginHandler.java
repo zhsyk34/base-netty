@@ -60,7 +60,7 @@ final class TCPLoginHandler extends ChannelInboundHandlerAdapter {
 
 		Device device = Device.from(json.getIntValue(Key.TYPE.getName()));
 		String sn = json.getString(Key.SN.getName());
-		Integer port = json.getInteger(Key.UDP_PORT.getName());
+		Integer port = json.getInteger(Key.ALLOT.getName());
 
 		String code = TCPSessionManager.ready(channel, device, sn, port);
 		if (code == null) {
@@ -109,7 +109,7 @@ final class TCPLoginHandler extends ChannelInboundHandlerAdapter {
 		response.put(Key.RESULT.getName(), Result.OK.getName());
 
 		if (allocated > 0) {
-			response.put(Key.UDP_PORT.getName(), allocated);//网关登录
+			response.put(Key.ALLOT.getName(), allocated);//网关登录
 		}
 		channel.writeAndFlush(response);
 	}

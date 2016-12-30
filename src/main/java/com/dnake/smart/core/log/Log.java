@@ -2,7 +2,10 @@ package com.dnake.smart.core.log;
 
 import com.dnake.smart.core.config.Config;
 import io.netty.handler.logging.LogLevel;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NonNull;
 import org.slf4j.Logger;
 
 import java.util.concurrent.LinkedBlockingQueue;
@@ -11,22 +14,6 @@ import java.util.concurrent.LinkedBlockingQueue;
  * 日志管理
  */
 public class Log {
-
-	/**
-	 * 日志内容
-	 */
-	@Getter
-	@AllArgsConstructor(access = AccessLevel.PRIVATE)
-//	@RequiredArgsConstructor(access = AccessLevel.PACKAGE, staticName = "of")
-	private static class Content {
-		@NonNull
-		private final Logger logger;
-		@NonNull
-		private final LogLevel level;
-		@NonNull
-		private final String msg;
-		private final Throwable throwable;
-	}
 
 	/**
 	 * TODO
@@ -117,5 +104,21 @@ public class Log {
 			default:
 				break;
 		}
+	}
+
+	/**
+	 * 日志内容
+	 */
+	@Getter
+	@AllArgsConstructor(access = AccessLevel.PRIVATE)
+//	@RequiredArgsConstructor(access = AccessLevel.PACKAGE, staticName = "of")
+	private static class Content {
+		@NonNull
+		private final Logger logger;
+		@NonNull
+		private final LogLevel level;
+		@NonNull
+		private final String msg;
+		private final Throwable throwable;
 	}
 }

@@ -31,15 +31,21 @@ public enum Action {
 	 * 3.网关主动推送至本服务器
 	 */
 	UNLOCK_PUSH(3, "cmtUnlock", "网关推送开锁信息"),
+	LOCK_STATUS_PUSH(3, "cmtLockStat", "提交开锁状态变化信息"),
+	LOCK_RECORD_PUSH(3, "cmtLockRecord", "推送脱机开锁记录"),
 	ALARM_PUSH(3, "cmtAlarm", "网关推送报警信息"),
+	@Deprecated
 	DEVICE_INFO_PUSH(3, "cmtDevInfo", "网关推送设备信息"),
 
 	/**
 	 * 4.本服务器主动推送至web服务器
 	 */
-	TCP_LOGIN_PUSH(4, "pass", "网关tcp登录推送"),
+	TCP_LOGIN_PUSH(4, "login", "网关tcp登录推送"),
 	TCP_LOGOUT_PUSH(4, "logout", "网关tcp离线推送"),
-	UDP_SESSION_PUSH(4, "udpPush", "udp会话信息推送");
+	UDP_SESSION_PUSH(4, "udpPush", "udp会话信息推送"),
+
+	//test TODO
+	TEST(5, "test", "测试");
 
 	private static final Map<String, Action> MAP = new HashMap<>();
 

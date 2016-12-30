@@ -25,6 +25,7 @@ final class TCPEventHandler extends ChannelInboundHandlerAdapter {
 
 	@Override
 	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+		cause.printStackTrace();
 		Log.logger(Factory.TCP_ERROR, ctx.channel().remoteAddress() + " 发生错误", cause);
 		this.channelInactive(ctx);
 	}

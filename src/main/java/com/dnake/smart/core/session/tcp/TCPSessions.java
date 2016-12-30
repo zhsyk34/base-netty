@@ -17,7 +17,9 @@ import java.net.InetSocketAddress;
 /**
  * TCP会话 信息&&状态 处理工具类
  */
-final class TCPSessions {
+public final class TCPSessions {
+
+	 /* ----------------------------------------连接信息----------------------------------------*/
 
 	private static String ip(@NonNull Channel channel) {
 		return ((InetSocketAddress) channel.remoteAddress()).getAddress().getHostAddress();
@@ -30,23 +32,37 @@ final class TCPSessions {
 	/**
 	 * 连接的默认id
 	 */
-	static String id(@NonNull Channel channel) {
+	public static String id(@NonNull Channel channel) {
 		return channel.id().asLongText();
 	}
+
+	 /* ----------------------------------------获取缓存信息----------------------------------------*/
 
 	/**
 	 * 获取连接身份
 	 */
-	static String sn(@NonNull Channel channel) {
+	public static String sn(@NonNull Channel channel) {
 		return SessionKit.sn(channel);
 	}
 
 	/**
 	 * 获取设备类型
 	 */
-	static Device device(@NonNull Channel channel) {
+	public static Device device(@NonNull Channel channel) {
 		return SessionKit.type(channel);
 	}
+
+	/**
+	 * 获取网关所有缓存的会话信息
+	 */
+	static TCPInfo info(@NonNull Channel channel) {
+		if (SessionKit.type(channel) != Device.GATEWAY) {
+			return null;
+		}
+		return TCPInfo.of(SessionKit.sn(channel), ip(channel), port(channel), SessionKit.port(channel), SessionKit.created(channel));
+	}
+
+	 /* ----------------------------------------登录过程中会话信息的验证与保存----------------------------------------*/
 
 	/**
 	 * 初始化连接
@@ -98,7 +114,7 @@ final class TCPSessions {
 	/**
 	 * 网关在通过验证后的进一步处理
 	 * 等待UDP端口分配:
-	 * {-1:失败,0:APP,50000+:网关}
+	 * {-1: 失败, 0: APP, 50000 +: 网关}
 	 */
 	static int allocate(@NonNull Channel channel) {
 		if (SessionKit.status(channel) != Status.VERIFIED) {
@@ -122,7 +138,7 @@ final class TCPSessions {
 	}
 
 	/**
-	 * 完成登录
+	 * 完成登录并将信息推送至WEB服务器
 	 */
 	static boolean pass(@NonNull Channel channel, Integer port) {
 		if (SessionKit.status(channel) != Status.ALLOCATED) {
@@ -141,23 +157,14 @@ final class TCPSessions {
 	}
 
 	/**
-	 * 释放资源
+	 * 关闭连接
 	 */
-	static void close(Channel channel) {
+	static boolean close(Channel channel) {
 		if (channel != null) {
 			SessionKit.status(channel, Status.CLOSED);
 			channel.close();
 		}
-	}
-
-	/**
-	 * 获取网关会话信息
-	 */
-	static GatewaySessionInfo info(@NonNull Channel channel) {
-		if (SessionKit.type(channel) != Device.GATEWAY) {
-			return null;
-		}
-		return GatewaySessionInfo.of(SessionKit.sn(channel), ip(channel), port(channel), SessionKit.port(channel), SessionKit.created(channel));
+		return true;
 	}
 
 	/**
@@ -177,7 +184,7 @@ final class TCPSessions {
 		//网关SN号
 		private static final AttributeKey<String> SN = AttributeKey.newInstance(Key.SN.getName());
 		//网关请求的UDP端口
-		private static final AttributeKey<Integer> PORT = AttributeKey.newInstance(Key.UDP_PORT.getName());
+		private static final AttributeKey<Integer> PORT = AttributeKey.newInstance(Key.ALLOT.getName());
 		//当前连接的登录验证码
 		private static final AttributeKey<String> KEYCODE = AttributeKey.newInstance(Key.KEYCODE.getName());
 		//连接状态

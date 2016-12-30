@@ -29,9 +29,6 @@ public enum Factory {
 
 	PROJECT_COMMON(Target.PROJECT, Category.COMMON);
 
-	private final Target target;
-	private final Category category;
-
 	private static final EnumMap<Factory, Logger> LOGGER_REGISTER = new EnumMap<>(Factory.class);
 
 	static {
@@ -40,6 +37,9 @@ public enum Factory {
 			LOGGER_REGISTER.put(factory, LoggerFactory.getLogger(name));
 		}
 	}
+
+	private final Target target;
+	private final Category category;
 
 	static Logger logger(@NonNull Factory factory) {
 		return LOGGER_REGISTER.get(factory);

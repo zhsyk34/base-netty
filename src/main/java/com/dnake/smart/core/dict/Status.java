@@ -5,6 +5,7 @@ import lombok.Getter;
 
 /**
  * 会话状态
+ * 以客户端的角度看待
  */
 @AllArgsConstructor
 @Getter
